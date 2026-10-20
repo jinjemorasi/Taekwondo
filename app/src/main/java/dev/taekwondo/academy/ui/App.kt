@@ -3,9 +3,12 @@ package dev.taekwondo.academy.ui
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.widget.MediaController
+import android.widget.VideoView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -56,6 +59,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.LayoutDirection
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.viewinterop.AndroidView
+import dev.taekwondo.academy.R
 import dev.taekwondo.academy.data.Poomsae
 import dev.taekwondo.academy.data.TaekwondoData
 import dev.taekwondo.academy.data.Technique
@@ -242,6 +247,31 @@ fun PoomsaeList(onSelect: (Poomsae) -> Unit) {
     }
 }
 
+fun techniqueVideoRes(enName: String): Int? = when (enName) {
+    "Front Kick" -> R.raw.ap_chagi
+    "Roundhouse Kick" -> R.raw.dollyo_chagi
+    "Side Kick" -> R.raw.yeop_chagi
+    "Back Kick" -> R.raw.dwi_chagi
+    "Axe Kick" -> R.raw.naeryeo_chagi
+    "Hook Kick" -> R.raw.huryeo_chagi
+    else -> null
+}
+
+@Composable
+fun LocalVideoPlayer(resId: Int) {
+    AndroidView(
+        factory = {
+            VideoView(it).apply {
+                val mc = MediaController(it)
+                mc.setAnchorView(this)
+                setMediaController(mc)
+                setVideoURI(Uri.parse("android.resource://${it.packageName}/$resId"))
+            }
+        },
+        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Charcoal, RoundedCornerShape(12.dp))
+    )
+}
+
 @Composable
 fun PoomsaeDetail(p: Poomsae) {
     val ctx = LocalContext.current
@@ -258,6 +288,10 @@ fun PoomsaeDetail(p: Poomsae) {
             Text(p.philosophy, color = TextGray, fontSize = 14.sp)
             SectionTitle("تکنیک‌های جدید این فرم")
             Text(p.newTechniques.joinToString("، "), color = Charcoal, fontSize = 14.sp)
+            if (p.id == 1) {
+                SectionTitle("ویدیوی آموزشی فرم (Google Flow)")
+                LocalVideoPlayer(R.raw.taeguk1)
+            }
             SectionTitle("مراحل گام‌به‌گام")
         }
         items(p.steps) { s ->
@@ -319,6 +353,11 @@ fun TechniqueDetail(t: Technique) {
         item {
             Text(t.koName, color = TextGray, fontSize = 13.sp)
             Text(t.description, color = Charcoal, fontSize = 15.sp)
+            val vRes = techniqueVideoRes(t.enName)
+            if (vRes != null) {
+                SectionTitle("ویدیوی آموزشی (Google Flow)")
+                LocalVideoPlayer(vRes)
+            }
             SectionTitle("مراحل اجرا")
         }
         items(t.steps) { s ->
