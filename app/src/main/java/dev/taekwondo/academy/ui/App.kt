@@ -30,6 +30,7 @@ import androidx.compose.material.icons.filled.Star
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -51,6 +52,7 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -276,18 +278,58 @@ fun formVideoUrl(id: Int): String? =
 
 @Composable
 fun RemoteVideoPlayer(url: String) {
-    AndroidView(
-        factory = {
-            VideoView(it).apply {
-                val mc = MediaController(it)
-                mc.setAnchorView(this)
-                setMediaController(mc)
-                setVideoURI(Uri.parse(url))
-                setOnPreparedListener { mp -> mp.isLooping = false }
+    var resolved by remember(url) { mutableStateOf<String?>(null) }
+    var failed by remember(url) { mutableStateOf(false) }
+    var attempt by remember(url) { mutableIntStateOf(0) }
+    // GitHub release links answer with a redirect that Android's media
+    // player cannot follow — resolve the final file URL first, then play.
+    val startedFor = remember(url) { mutableIntStateOf(-1) }
+    if (startedFor.value != attempt) {
+        startedFor.value = attempt
+        Thread {
+            try {
+                val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                conn.instanceFollowRedirects = true
+                conn.connectTimeout = 12000
+                conn.readTimeout = 12000
+                conn.setRequestProperty("Range", "bytes=0-0")
+                conn.connect()
+                val code = conn.responseCode
+                val finalUrl = conn.url.toString()
+                conn.disconnect()
+                if (code in 200..299) resolved = finalUrl else failed = true
+            } catch (e: Exception) {
+                failed = true
             }
-        },
-        modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Charcoal, RoundedCornerShape(12.dp))
-    )
+        }.start()
+    }
+    Box(
+        Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Charcoal, RoundedCornerShape(12.dp)),
+        contentAlignment = Alignment.Center
+    ) {
+        when {
+            resolved != null -> AndroidView(
+                factory = {
+                    VideoView(it).apply {
+                        val mc = MediaController(it)
+                        mc.setAnchorView(this)
+                        setMediaController(mc)
+                        setVideoURI(Uri.parse(resolved))
+                        setOnErrorListener { _, _, _ -> failed = true; true }
+                    }
+                },
+                modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
+            )
+            failed -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Text("خطا در بارگذاری ویدیو", color = Color.White, fontSize = 14.sp)
+                Spacer(Modifier.height(8.dp))
+                Button(onClick = { failed = false; resolved = null; attempt++ },
+                    colors = ButtonDefaults.buttonColors(containerColor = AccentRed, contentColor = Color.White),
+                    shape = RoundedCornerShape(10.dp)) { Text("تلاش دوباره", fontSize = 13.sp) }
+            }
+            else -> CircularProgressIndicator(color = Color.White)
+        }
+    }
 }
 
 @Composable
