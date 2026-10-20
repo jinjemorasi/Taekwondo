@@ -260,8 +260,11 @@ fun PoomsaeList(onSelect: (Poomsae) -> Unit) {
     }
 }
 
-// Flow clips are hosted as GitHub Release assets and streamed in-app.
-const val VIDEO_BASE = "https://github.com/jinjemorasi/Taekwondo/releases/download/videos-v1"
+// Flow clips live in the repo's /videos folder and are served by the
+// jsDelivr CDN: direct 200 responses with a proper video/mp4 type and no
+// redirects (GitHub's release-asset host 302-redirects, which Android's
+// media player cannot handle).
+const val VIDEO_BASE = "https://cdn.jsdelivr.net/gh/jinjemorasi/Taekwondo@main/videos"
 
 fun techniqueVideoUrl(enName: String): String? = when (enName) {
     "Front Kick" -> "$VIDEO_BASE/ap-chagi.mp4"
