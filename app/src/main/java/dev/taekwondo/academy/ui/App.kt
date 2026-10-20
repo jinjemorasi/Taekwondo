@@ -136,12 +136,13 @@ fun TaekwondoApp() {
                         selectedTechnique != null -> TechniqueDetail(selectedTechnique!!)
                         tab == 0 -> HomeScreen(
                             onStartTraining = { tab = 3 },
-                            onOpenForms = { tab = 1 }
+                            onOpenForms = { tab = 1 },
+                            onOpenOnline = { tab = 4 }
                         )
                         tab == 1 -> PoomsaeList { selectedPoomsae = it }
                         tab == 2 -> TechniqueList { selectedTechnique = it }
                         tab == 3 -> ProgramsScreen()
-                        else -> OnlineClassScreen()
+                        else -> OnlineTab()
                     }
                 }
             }
@@ -166,7 +167,7 @@ fun SectionTitle(text: String) {
 }
 
 @Composable
-fun HomeScreen(onStartTraining: () -> Unit, onOpenForms: () -> Unit) {
+fun HomeScreen(onStartTraining: () -> Unit, onOpenForms: () -> Unit, onOpenOnline: () -> Unit) {
     val todayIdx = (Calendar.getInstance().get(Calendar.DAY_OF_WEEK) + 5) % 7 // 0=Sat-ish mapping for display only
     val program = TaekwondoData.programs[0]
     val today = program.schedule[todayIdx % program.schedule.size]
@@ -218,6 +219,16 @@ fun HomeScreen(onStartTraining: () -> Unit, onOpenForms: () -> Unit) {
                 Column(Modifier.padding(16.dp)) {
                     Text("از تگوک ۱ (آسمان) تا تگوک ۸ (زمین)", fontWeight = FontWeight.Bold, color = Charcoal)
                     Text("هر فرم با فلسفه، نماد و مراحل گام‌به‌گام — دقیقاً به ترتیب آزمون کمربند کوکی‌وان.", color = TextGray, fontSize = 13.sp)
+                }
+            }
+        }
+        item { SectionTitle("اشتراک و کلاس آنلاین") }
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = CardWhite),
+                shape = RoundedCornerShape(16.dp), modifier = Modifier.clickable { onOpenOnline() }) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("کلاس‌های زنده با اشتراک آکادمی", fontWeight = FontWeight.Bold, color = Charcoal)
+                    Text("با کد اشتراکی که مربی در اختیارتان می‌گذارد (ماهانه، سه‌ماهه یا سالانه) به کلاس‌ها و بخش آنلاین دسترسی پیدا می‌کنید.", color = TextGray, fontSize = 13.sp)
                 }
             }
         }
@@ -408,7 +419,88 @@ fun ProgramCard(prog: TrainingProgram) {
 }
 
 @Composable
-fun OnlineClassScreen() {
+fun OnlineTab() {
+    val ctx = LocalContext.current
+    var active by remember { mutableStateOf(LicenseStore.isActive(ctx)) }
+    var showRenew by remember { mutableStateOf(false) }
+    when {
+        active && !showRenew -> OnlineClassScreen(onRenew = { showRenew = true })
+        else -> SubscriptionScreen(onActivated = {
+            active = LicenseStore.isActive(ctx)
+            showRenew = false
+        })
+    }
+}
+
+@Composable
+fun SubscriptionScreen(onActivated: () -> Unit) {
+    val ctx = LocalContext.current
+    var code by remember { mutableStateOf("") }
+    var error by remember { mutableStateOf<String?>(null) }
+    val cached = LicenseStore.loadCachedPool(ctx)
+    var pool by remember {
+        mutableStateOf(if (cached.isNotEmpty()) cached else LicenseStore.loadBundledPool(ctx))
+    }
+    val fetchStarted = remember { mutableStateOf(false) }
+    if (!fetchStarted.value) {
+        fetchStarted.value = true
+        Thread { LicenseStore.fetchPool(ctx)?.let { pool = it } }.start()
+    }
+    val renewing = LicenseStore.isActive(ctx)
+
+    LazyColumn(Modifier.fillMaxSize().padding(16.dp)) {
+        item {
+            Card(colors = CardDefaults.cardColors(containerColor = Charcoal), shape = RoundedCornerShape(16.dp)) {
+                Column(Modifier.padding(16.dp)) {
+                    Text("اشتراک آکادمی تکواندو", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(6.dp))
+                    Text("کلاس‌های آنلاین و بخش کلاس‌ها مخصوص هنرجویان دارای اشتراک فعال است. کد اشتراک را از مربی دریافت کنید و همین‌جا فعالش کنید.", color = Color(0xFFD6D6DD), fontSize = 13.sp)
+                    if (renewing) {
+                        Spacer(Modifier.height(8.dp))
+                        Text("اشتراک فعلی شما فعال است — ${LicenseStore.daysLeft(ctx)} روز باقی مانده. با وارد کردن کد جدید، مدت اشتراک تمدید می‌شود.",
+                            color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    }
+                }
+            }
+            SectionTitle("پلن‌های اشتراک")
+        }
+        items(PLANS) { plan ->
+            Card(colors = CardDefaults.cardColors(containerColor = CardWhite), shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 5.dp)) {
+                Row(Modifier.padding(16.dp).fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Text(plan.faTitle, fontWeight = FontWeight.Bold, color = Charcoal, fontSize = 15.sp)
+                    Text(plan.faDuration, color = AccentRed, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
+        item {
+            SectionTitle("فعال‌سازی با کد اشتراک")
+            OutlinedTextField(code, { code = it; error = null }, label = { Text("کد اشتراک (مثلاً TKD-XXXXXX-XXXXXX)") },
+                modifier = Modifier.fillMaxWidth())
+            if (error != null) {
+                Spacer(Modifier.height(6.dp))
+                Text(error!!, color = AccentRed, fontSize = 13.sp)
+            }
+            Spacer(Modifier.height(12.dp))
+            RedButton("فعال‌سازی اشتراک", Modifier.fillMaxWidth()) {
+                val plan = LicenseStore.findPlan(code, pool)
+                if (plan != null) {
+                    LicenseStore.activate(ctx, plan)
+                    onActivated()
+                } else {
+                    error = "این کد معتبر نیست. املای کد را بررسی کنید؛ اگر تازه خریده‌اید، چند لحظه صبر کنید و دوباره تلاش کنید."
+                }
+            }
+            Spacer(Modifier.height(12.dp))
+            Text("قیمت و خرید کد اشتراک را مربی باشگاه اعلام می‌کند؛ پس از پرداخت، کد را از مربی بگیرید و همین‌جا وارد کنید. هر کد پس از فعال‌سازی به مدت پلن انتخابی معتبر است.",
+                color = TextGray, fontSize = 12.sp)
+            Spacer(Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+fun OnlineClassScreen(onRenew: () -> Unit = {}) {
     val ctx = LocalContext.current
     var room by remember { mutableStateOf("TaekwondoAcademyLive") }
     var name by remember { mutableStateOf("") }
@@ -430,6 +522,13 @@ fun OnlineClassScreen() {
                     Text("کلاس آنلاین زنده", color = Color.White, fontSize = 20.sp, fontWeight = FontWeight.Bold)
                     Spacer(Modifier.height(6.dp))
                     Text("کلاس‌ها روی Jitsi Meet برگزار می‌شود — کاملاً رایگان و متن‌باز، بدون نیاز به ساخت حساب و بدون محدودیت زمانی. کافی است نام اتاق را وارد کنید و وارد شوید؛ دوربین و میکروفون را مرورگر یا اپ Jitsi مدیریت می‌کند.", color = Color(0xFFD6D6DD), fontSize = 13.sp)
+                    Spacer(Modifier.height(10.dp))
+                    Text("✓ اشتراک فعال: ${LicenseStore.activePlan(ctx)?.faTitle ?: ""} — ${LicenseStore.daysLeft(ctx)} روز باقی مانده",
+                        color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
+                    Spacer(Modifier.height(8.dp))
+                    Button(onClick = { onRenew() },
+                        colors = ButtonDefaults.buttonColors(containerColor = AccentRed, contentColor = Color.White),
+                        shape = RoundedCornerShape(10.dp)) { Text("تمدید اشتراک", fontSize = 13.sp) }
                 }
             }
             SectionTitle("ورود به کلاس")
