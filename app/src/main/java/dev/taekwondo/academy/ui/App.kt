@@ -260,38 +260,45 @@ fun PoomsaeList(onSelect: (Poomsae) -> Unit) {
     }
 }
 
-// Flow clips live in the repo's /videos folder and are served by the
-// jsDelivr CDN: direct 200 responses with a proper video/mp4 type and no
-// redirects (GitHub's release-asset host 302-redirects, which Android's
-// media player cannot handle).
-const val VIDEO_BASE = "https://cdn.jsdelivr.net/gh/jinjemorasi/Taekwondo@main/videos"
+// Flow clips live in the repo's /videos folder. The player tries several
+// direct mirrors in order until one answers (CDN branch sync can lag per
+// region; the commit-pinned mirror and raw GitHub are the fallbacks).
+const val VIDEO_COMMIT = "a206b3c66f9b31ba6d4f5cadb60abe714be811fa"
 
-fun techniqueVideoUrl(enName: String): String? = when (enName) {
-    "Front Kick" -> "$VIDEO_BASE/ap-chagi.mp4"
-    "Roundhouse Kick" -> "$VIDEO_BASE/dollyo-chagi.mp4"
-    "Side Kick" -> "$VIDEO_BASE/yeop-chagi.mp4"
-    "Back Kick" -> "$VIDEO_BASE/dwi-chagi.mp4"
-    "Axe Kick" -> "$VIDEO_BASE/naeryeo-chagi.mp4"
-    "Hook Kick" -> "$VIDEO_BASE/huryeo-chagi.mp4"
+fun videoCandidates(file: String): List<String> = listOf(
+    "https://cdn.jsdelivr.net/gh/jinjemorasi/Taekwondo@main/videos/$file",
+    "https://cdn.jsdelivr.net/gh/jinjemorasi/Taekwondo@$VIDEO_COMMIT/videos/$file",
+    "https://raw.githubusercontent.com/jinjemorasi/Taekwondo/main/videos/$file"
+)
+
+fun techniqueVideoFile(enName: String): String? = when (enName) {
+    "Front Kick" -> "ap-chagi.mp4"
+    "Roundhouse Kick" -> "dollyo-chagi.mp4"
+    "Side Kick" -> "yeop-chagi.mp4"
+    "Back Kick" -> "dwi-chagi.mp4"
+    "Axe Kick" -> "naeryeo-chagi.mp4"
+    "Hook Kick" -> "huryeo-chagi.mp4"
     else -> null
 }
 
-fun formVideoUrl(id: Int): String? =
-    if (id in 1..8) "$VIDEO_BASE/taeguk-$id.mp4" else null
+fun formVideoFile(id: Int): String? =
+    if (id in 1..8) "taeguk-$id.mp4" else null
 
 @Composable
-fun RemoteVideoPlayer(url: String) {
-    var resolved by remember(url) { mutableStateOf<String?>(null) }
-    var failed by remember(url) { mutableStateOf(false) }
-    var attempt by remember(url) { mutableIntStateOf(0) }
-    // GitHub release links answer with a redirect that Android's media
-    // player cannot follow — resolve the final file URL first, then play.
-    val startedFor = remember(url) { mutableIntStateOf(-1) }
-    if (startedFor.value != attempt) {
-        startedFor.value = attempt
+fun RemoteVideoPlayer(file: String) {
+    val candidates = remember(file) { videoCandidates(file) }
+    var idx by remember(file) { mutableIntStateOf(0) }
+    var resolved by remember(file) { mutableStateOf<String?>(null) }
+    var giveUp by remember(file) { mutableStateOf(false) }
+    val startedIdx = remember(file) { mutableIntStateOf(-1) }
+    // Resolve the current candidate (following any redirect); on failure
+    // fall through to the next mirror automatically.
+    if (resolved == null && !giveUp && startedIdx.value != idx && idx < candidates.size) {
+        startedIdx.value = idx
+        val candidate = candidates[idx]
         Thread {
             try {
-                val conn = java.net.URL(url).openConnection() as java.net.HttpURLConnection
+                val conn = java.net.URL(candidate).openConnection() as java.net.HttpURLConnection
                 conn.instanceFollowRedirects = true
                 conn.connectTimeout = 12000
                 conn.readTimeout = 12000
@@ -300,9 +307,10 @@ fun RemoteVideoPlayer(url: String) {
                 val code = conn.responseCode
                 val finalUrl = conn.url.toString()
                 conn.disconnect()
-                if (code in 200..299) resolved = finalUrl else failed = true
+                if (code in 200..299) resolved = finalUrl
+                else if (idx < candidates.lastIndex) idx++ else giveUp = true
             } catch (e: Exception) {
-                failed = true
+                if (idx < candidates.lastIndex) idx++ else giveUp = true
             }
         }.start()
     }
@@ -318,15 +326,19 @@ fun RemoteVideoPlayer(url: String) {
                         mc.setAnchorView(this)
                         setMediaController(mc)
                         setVideoURI(Uri.parse(resolved))
-                        setOnErrorListener { _, _, _ -> failed = true; true }
+                        setOnErrorListener { _, _, _ ->
+                            resolved = null
+                            if (idx < candidates.lastIndex) idx++ else giveUp = true
+                            true
+                        }
                     }
                 },
                 modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f)
             )
-            failed -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
+            giveUp -> Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text("خطا در بارگذاری ویدیو", color = Color.White, fontSize = 14.sp)
                 Spacer(Modifier.height(8.dp))
-                Button(onClick = { failed = false; resolved = null; attempt++ },
+                Button(onClick = { giveUp = false; resolved = null; startedIdx.value = -1; idx = 0 },
                     colors = ButtonDefaults.buttonColors(containerColor = AccentRed, contentColor = Color.White),
                     shape = RoundedCornerShape(10.dp)) { Text("تلاش دوباره", fontSize = 13.sp) }
             }
@@ -351,10 +363,10 @@ fun PoomsaeDetail(p: Poomsae) {
             Text(p.philosophy, color = TextGray, fontSize = 14.sp)
             SectionTitle("تکنیک‌های جدید این فرم")
             Text(p.newTechniques.joinToString("، "), color = Charcoal, fontSize = 14.sp)
-            val fUrl = formVideoUrl(p.id)
-            if (fUrl != null) {
+            val fFile = formVideoFile(p.id)
+            if (fFile != null) {
                 SectionTitle("ویدیوی آموزشی فرم (Google Flow)")
-                RemoteVideoPlayer(fUrl)
+                RemoteVideoPlayer(fFile)
             }
             SectionTitle("مراحل گام‌به‌گام")
         }
@@ -411,10 +423,10 @@ fun TechniqueDetail(t: Technique) {
         item {
             Text(t.koName, color = TextGray, fontSize = 13.sp)
             Text(t.description, color = Charcoal, fontSize = 15.sp)
-            val vUrl = techniqueVideoUrl(t.enName)
-            if (vUrl != null) {
+            val vFile = techniqueVideoFile(t.enName)
+            if (vFile != null) {
                 SectionTitle("ویدیوی آموزشی (Google Flow)")
-                RemoteVideoPlayer(vUrl)
+                RemoteVideoPlayer(vFile)
             }
             SectionTitle("مراحل اجرا")
         }
