@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Taeguk-like symbol: red upper / white lower circle on transparent, centred in adaptive safe zone -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- outer white ring -->
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,22 a32,32 0 1,0 0.1,0 z" />
+    <!-- red upper half (taeguk) -->
+    <path
+        android:fillColor="#E30613"
+        android:pathData="M54,25 a29,29 0 0,1 0,58 a14.5,14.5 0 0,1 0,-29 a14.5,14.5 0 0,0 0,-29 z" />
+    <!-- charcoal lower half -->
+    <path
+        android:fillColor="#17171C"
+        android:pathData="M54,83 a29,29 0 0,1 0,-58 a14.5,14.5 0 0,1 0,29 a14.5,14.5 0 0,0 0,29 z" />
+    <!-- dots -->
+    <path
+        android:fillColor="#E30613"
+        android:pathData="M54,62 a7.5,7.5 0 1,0 0.1,0 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M54,39 a7.5,7.5 0 1,0 0.1,0 z" />
+</vector>
