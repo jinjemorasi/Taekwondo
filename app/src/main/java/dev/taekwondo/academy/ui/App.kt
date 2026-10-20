@@ -247,25 +247,34 @@ fun PoomsaeList(onSelect: (Poomsae) -> Unit) {
     }
 }
 
-fun techniqueVideoRes(enName: String): Int? = when (enName) {
-    "Front Kick" -> R.raw.ap_chagi
-    "Roundhouse Kick" -> R.raw.dollyo_chagi
-    "Side Kick" -> R.raw.yeop_chagi
-    "Back Kick" -> R.raw.dwi_chagi
-    "Axe Kick" -> R.raw.naeryeo_chagi
-    "Hook Kick" -> R.raw.huryeo_chagi
+// Flow clips are hosted as GitHub Release assets and streamed in-app.
+const val VIDEO_BASE = "https://github.com/jinjemorasi/Taekwondo/releases/download/videos-v1"
+
+fun techniqueVideoUrl(enName: String): String? = when (enName) {
+    "Front Kick" -> "$VIDEO_BASE/ap-chagi.mp4"
+    "Roundhouse Kick" -> "$VIDEO_BASE/dollyo-chagi.mp4"
+    "Side Kick" -> "$VIDEO_BASE/yeop-chagi.mp4"
+    "Back Kick" -> "$VIDEO_BASE/dwi-chagi.mp4"
+    "Axe Kick" -> "$VIDEO_BASE/naeryeo-chagi.mp4"
+    "Hook Kick" -> "$VIDEO_BASE/huryeo-chagi.mp4"
+    else -> null
+}
+
+fun formVideoUrl(id: Int): String? = when (id) {
+    1 -> "$VIDEO_BASE/taeguk-1.mp4"
     else -> null
 }
 
 @Composable
-fun LocalVideoPlayer(resId: Int) {
+fun RemoteVideoPlayer(url: String) {
     AndroidView(
         factory = {
             VideoView(it).apply {
                 val mc = MediaController(it)
                 mc.setAnchorView(this)
                 setMediaController(mc)
-                setVideoURI(Uri.parse("android.resource://${it.packageName}/$resId"))
+                setVideoURI(Uri.parse(url))
+                setOnPreparedListener { mp -> mp.isLooping = false }
             }
         },
         modifier = Modifier.fillMaxWidth().aspectRatio(16f / 9f).background(Charcoal, RoundedCornerShape(12.dp))
@@ -288,9 +297,10 @@ fun PoomsaeDetail(p: Poomsae) {
             Text(p.philosophy, color = TextGray, fontSize = 14.sp)
             SectionTitle("تکنیک‌های جدید این فرم")
             Text(p.newTechniques.joinToString("، "), color = Charcoal, fontSize = 14.sp)
-            if (p.id == 1) {
+            val fUrl = formVideoUrl(p.id)
+            if (fUrl != null) {
                 SectionTitle("ویدیوی آموزشی فرم (Google Flow)")
-                LocalVideoPlayer(R.raw.taeguk1)
+                RemoteVideoPlayer(fUrl)
             }
             SectionTitle("مراحل گام‌به‌گام")
         }
@@ -303,12 +313,6 @@ fun PoomsaeDetail(p: Poomsae) {
             }
         }
         item {
-            Spacer(Modifier.height(16.dp))
-            OutlinedButton(onClick = {
-                val url = "https://www.youtube.com/results?search_query=" +
-                    java.net.URLEncoder.encode("kukkiwon ${p.enName} poomsae", "UTF-8")
-                ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
-            }, modifier = Modifier.fillMaxWidth()) { Text("تماشای ویدیوی فرم در یوتیوب", color = Charcoal) }
             Spacer(Modifier.height(24.dp))
         }
     }
@@ -353,10 +357,10 @@ fun TechniqueDetail(t: Technique) {
         item {
             Text(t.koName, color = TextGray, fontSize = 13.sp)
             Text(t.description, color = Charcoal, fontSize = 15.sp)
-            val vRes = techniqueVideoRes(t.enName)
-            if (vRes != null) {
+            val vUrl = techniqueVideoUrl(t.enName)
+            if (vUrl != null) {
                 SectionTitle("ویدیوی آموزشی (Google Flow)")
-                LocalVideoPlayer(vRes)
+                RemoteVideoPlayer(vUrl)
             }
             SectionTitle("مراحل اجرا")
         }
@@ -370,10 +374,6 @@ fun TechniqueDetail(t: Technique) {
         item {
             SectionTitle("خطاهای رایج")
             t.mistakes.forEach { m -> Text("✗ $m", color = TextGray, fontSize = 14.sp, modifier = Modifier.padding(vertical = 2.dp)) }
-            Spacer(Modifier.height(16.dp))
-            RedButton("تماشای فیلم آموزشی", Modifier.fillMaxWidth()) {
-                ctx.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(t.videoUrl)))
-            }
             Spacer(Modifier.height(24.dp))
         }
     }
