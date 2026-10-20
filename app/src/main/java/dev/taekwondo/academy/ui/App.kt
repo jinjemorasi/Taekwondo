@@ -260,10 +260,8 @@ fun techniqueVideoUrl(enName: String): String? = when (enName) {
     else -> null
 }
 
-fun formVideoUrl(id: Int): String? = when (id) {
-    1 -> "$VIDEO_BASE/taeguk-1.mp4"
-    else -> null
-}
+fun formVideoUrl(id: Int): String? =
+    if (id in 1..8) "$VIDEO_BASE/taeguk-$id.mp4" else null
 
 @Composable
 fun RemoteVideoPlayer(url: String) {
