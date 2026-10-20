@@ -30,7 +30,16 @@ jobs:
       - name: Grant execute permission for gradlew
         run: chmod +x gradlew
 
+      - name: Decode signing keystore
+        run: |
+          echo "${{ secrets.TAEKWONDO_KEYSTORE_B64 }}" | base64 -d > "$RUNNER_TEMP/taekwondo.jks"
+          echo "TAEKWONDO_KEYSTORE_FILE=$RUNNER_TEMP/taekwondo.jks" >> "$GITHUB_ENV"
+
       - name: Build debug and release APKs
+        env:
+          TAEKWONDO_STORE_PASS: ${{ secrets.TAEKWONDO_STORE_PASS }}
+          TAEKWONDO_KEY_ALIAS: ${{ secrets.TAEKWONDO_KEY_ALIAS }}
+          TAEKWONDO_KEY_PASS: ${{ secrets.TAEKWONDO_KEY_PASS }}
         run: ./gradlew assembleDebug assembleRelease
 
       - name: Upload debug APK

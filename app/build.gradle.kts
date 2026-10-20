@@ -12,12 +12,32 @@ android {
         applicationId = "dev.taekwondo.academy"
         minSdk = 24
         targetSdk = 37
-        versionCode = 2
-        versionName = "1.1.0"
+        versionCode = 3
+        versionName = "1.2.0"
+    }
+
+    signingConfigs {
+        create("fixed") {
+            val ksPath = System.getenv("TAEKWONDO_KEYSTORE_FILE")
+            if (ksPath != null) {
+                storeFile = file(ksPath)
+                storePassword = System.getenv("TAEKWONDO_STORE_PASS")
+                keyAlias = System.getenv("TAEKWONDO_KEY_ALIAS")
+                keyPassword = System.getenv("TAEKWONDO_KEY_PASS")
+            }
+        }
     }
 
     buildTypes {
+        debug {
+            if (System.getenv("TAEKWONDO_KEYSTORE_FILE") != null) {
+                signingConfig = signingConfigs.getByName("fixed")
+            }
+        }
         release {
+            if (System.getenv("TAEKWONDO_KEYSTORE_FILE") != null) {
+                signingConfig = signingConfigs.getByName("fixed")
+            }
             isMinifyEnabled = false
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
